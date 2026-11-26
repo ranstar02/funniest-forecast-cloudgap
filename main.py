@@ -1,34 +1,52 @@
-"""Write the one-line weather forecast for Cloudgap to /output/entry.txt and verify it."""
+"""Cloudgap forecast: write the competition entry line to /output/entry.txt.
+
+The entry is a single weather-forecast line (at most 120 characters) for
+Cloudgap, a city that does not exist. This program validates the line,
+writes it to the scorer's output path, and reads it back to prove the
+round trip is exact.
+"""
+
+from pathlib import Path
 
 ENTRY = "Cloudgap: sunny intervals today, except directly overhead, where the sky has gone missing since Tuesday."
 
-OUTPUT_PATHS = ["/output/entry.txt", "./output/entry.txt"]
+MAX_CHARS = 120
+CANDIDATE_PATHS = (Path("/output/entry.txt"), Path("output/entry.txt"))
+
+
+def validate(line: str) -> str:
+    """Reject anything the gate would refuse, before writing a byte."""
+    if not line.strip():
+        raise ValueError("entry must not be only whitespace")
+    if len(line) > MAX_CHARS:
+        raise ValueError(
+            f"entry is {len(line)} characters, over the {MAX_CHARS} limit"
+        )
+    if "\n" in line:
+        raise ValueError("entry must be a single line")
+    return line
+
+
+def write_entry(line: str) -> Path:
+    """Write the line to the first usable output path and confirm it."""
+    checked = validate(line)
+    for target in CANDIDATE_PATHS:
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(checked, encoding="utf-8")
+        except OSError:
+            continue
+        if target.read_text(encoding="utf-8") != checked:
+            raise RuntimeError(f"round-trip mismatch at {target}")
+        return target
+    raise RuntimeError("no output path was writable")
 
 
 def main() -> None:
-    assert 1 <= len(ENTRY) <= 120, "entry must be 1-120 characters"
-    assert ENTRY.strip(), "entry must not be only whitespace"
-
-    written_path = None
-    last_error = None
-    for path in OUTPUT_PATHS:
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(ENTRY)
-            written_path = path
-            break
-        except OSError as exc:  # e.g. /output not writable; try the fallback
-            last_error = exc
-    if written_path is None:
-        raise RuntimeError(f"could not write entry: {last_error}")
-
-    with open(written_path, "r", encoding="utf-8") as f:
-        read_back = f.read()
-    assert read_back == ENTRY, "round-trip mismatch"
-
+    path = write_entry(ENTRY)
     print(ENTRY)
     print(f"characters: {len(ENTRY)}")
-    print(f"wrote: {written_path}")
+    print(f"wrote: {path}")
 
 
 if __name__ == "__main__":
